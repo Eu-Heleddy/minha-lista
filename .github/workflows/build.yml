@@ -16,15 +16,33 @@ jobs:
           java-version: 17
       - name: Preparar app
         run: |
-          mkdir www assets
+          mkdir www
           cp index.html www/index.html
-          cp icon-only.png assets/icon-only.png
           npm init -y
-          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor/assets@3
+          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
           npx cap init "Minha Lista" com.minhalista.app --web-dir www
           npx cap add android
-      - name: Gerar icones
-        run: npx capacitor-assets generate --android --iconBackgroundColor '#000000' --iconBackgroundColorDark '#000000' || true
+      - name: Aplicar icone
+        run: |
+          pip install pillow
+          python3 - <<'PY'
+          from PIL import Image
+          im = Image.open('icon-only.png').convert('RGBA')
+          w = im.width
+          m = int(w * 0.1)
+          crop = im.crop((m, m, w - m, w - m))
+          sizes = {'mdpi': (48, 108), 'hdpi': (72, 162), 'xhdpi': (96, 216), 'xxhdpi': (144, 324), 'xxxhdpi': (192, 432)}
+          base = 'android/app/src/main/res/'
+          for k, (l, f) in sizes.items():
+              p = base + 'mipmap-' + k + '/'
+              im.resize((l, l)).save(p + 'ic_launcher.png')
+              im.resize((l, l)).save(p + 'ic_launcher_round.png')
+              c = Image.new('RGBA', (f, f), (0, 0, 0, 0))
+              s = int(f * 0.66)
+              c.paste(crop.resize((s, s)), ((f - s) // 2, (f - s) // 2))
+              c.save(p + 'ic_launcher_foreground.png')
+          open(base + 'values/ic_launcher_background.xml', 'w').write('<?xml version="1.0" encoding="utf-8"?><resources><color name="ic_launcher_background">#000000</color></resources>')
+          PY
       - name: Sincronizar
         run: npx cap sync android
       - name: Compilar APK
